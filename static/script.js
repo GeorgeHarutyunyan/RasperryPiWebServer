@@ -1,4 +1,5 @@
 var socket = io();
+//var socket = connect('http://192.168.86.250:5000/')
 socket.on('connect', function() {
     console.log('connected');
 });

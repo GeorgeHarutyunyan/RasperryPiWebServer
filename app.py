@@ -1,12 +1,16 @@
-from flask_socketio import SocketIO,emit
+from flask_socketio import SocketIO
 import serial
 import time
 from flask import Flask, render_template
 import threading
 
 app = Flask(__name__)
+app.config['SECRET_KEY'] = 'secret!'
+thread = None
 
 socketio = SocketIO(app)
+socketio.init_app(app, cors_allowed_origins="*")
+print(f"socketio Async Mode: {socketio.async_mode}")
 
 #Handles annoying problem where replugging the Arduino through USB to RaspberryPi changes the path 
 #to the device to either USB0 or USB1
@@ -19,13 +23,12 @@ ser.flush()
 
 @app.route('/')
 def index():
+    global thread
+    if thread is None:
+        #thread = threading.Thread(target=read_serial_data)
+        thread = socketio.start_background_task(target=read_serial_data)
+        pass
     return render_template('index.html')
-    
-#when Arduino sends message to RaspberryPi
-@socketio.on('message event')
-def process_message(message):
-    emit('message event', message)
-    print("Message from arduino: ",message)
 
 #when data must be sent to Arudino
 @socketio.on('arduino message')
@@ -43,25 +46,16 @@ def test_disconnect():
 
 #Reads data from Arduino and processes messages to the SocketIO
 def read_serial_data():
-    count = 0
     while True: 
         if ser.in_waiting > 0:
             line = ser.readline().decode('utf-8',errors='replace').rstrip()
-            time.sleep(0.1)
             print("Data: ",line)
             if line and line != None:
                 if line[0:8] == "message:": #to not display unnecessary serial data
                     socketio.emit('message event',line[8:])
+                    print("printable message!! : ",line)
+        socketio.sleep(0.2)
 
-                
-def run_flask():
-    socketio.run(app,host='0.0.0.0')
-    
-def run_app():
-    flask_thread = threading.Thread(target=run_flask)
-    flask_thread.start()
-    serial_thread = threading.Thread(target=read_serial_data)
-    serial_thread.start()
     
 if __name__ == '__main__':
-    run_app()
+    socketio.run(app,host='0.0.0.0')
